@@ -1,0 +1,11 @@
+Model Information:
+* title:	Lamp
+* source:	https://sketchfab.com/3d-models/lamp-c85c7a1dbb724e9ea1d90abd6445fad4
+* author:	Aaron_Beller (https://sketchfab.com/Aaron_Beller)
+
+Model License:
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
+
+If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
+This work is based on "Lamp" (https://sketchfab.com/3d-models/lamp-c85c7a1dbb724e9ea1d90abd6445fad4) by Aaron_Beller (https://sketchfab.com/Aaron_Beller) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
