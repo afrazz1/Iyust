@@ -33,6 +33,7 @@
 
 			let camera, scene, renderer, controls;
 			let currentModel, mixer;
+			const annotations = [];
 			let currentLoadId = 0;
 
 			const clock = new THREE.Clock();
@@ -74,6 +75,7 @@
 					renderer.compileAsync( currentModel, camera, scene ).then( () => {
 
 						scene.add( currentModel );
+						createAnnotations();
 
 						fitCameraToSelection( camera, controls, currentModel );
 
@@ -162,6 +164,33 @@
 
 			}
 
+			function createAnnotations() {
+
+	// очистка старых
+	for (const ann of annotations) {
+		ann.element.remove();
+	}
+	annotations.length = 0;
+
+	// пример точек (можешь менять координаты)
+	const points = [
+		{ position: new THREE.Vector3(0, 0.5, 0), label: "Точка №1" },
+		{ position: new THREE.Vector3(0.5, 0.2, 0), label: "Точка №2" }
+	];
+
+	for (const p of points) {
+
+		const div = document.createElement('div');
+		div.className = 'annotation';
+		div.dataset.label = p.label;
+		document.body.appendChild(div);
+
+		annotations.push({
+			position: p.position,
+			element: div
+		});
+	}
+}
 			function fitCameraToSelection( camera, controls, selection, fitOffset = 1.3 ) {
 
 				const box = new THREE.Box3();
@@ -204,6 +233,29 @@
 			}
 
 			//
+			function updateAnnotations() {
+
+	for (const ann of annotations) {
+
+		const pos = ann.position.clone();
+
+		// если модель есть — привязываем к ней
+		if (currentModel) {
+			currentModel.localToWorld(pos);
+		}
+
+		pos.project(camera);
+
+		const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+		const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+
+		ann.element.style.left = `${x}px`;
+		ann.element.style.top = `${y}px`;
+
+		// скрытие если за камерой
+		ann.element.style.display = pos.z < 1 ? 'block' : 'none';
+	}
+}
 
 			function render() {
 
@@ -214,10 +266,35 @@
 				if ( mixer ) mixer.update( delta );
 
 				renderer.render( scene, camera );
-
+				
+				updateAnnotations();
 			}
 
 		</script>
+<style>
+.annotation {
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: rgb(254, 254, 254);
+	cursor: pointer;
+	transform: translate(-50%, -50%);
+}
 
+.annotation:hover::after {
+	content: attr(data-label);
+	position: absolute;
+	top: -30px;
+	left: 50%;
+	transform: translateX(-50%);
+	background: black;
+	color: white;
+	padding: 4px 8px;
+	font-size: 12px;
+	border-radius: 4px;
+	white-space: nowrap;
+}
+</style>
 	</body>
 </html>
