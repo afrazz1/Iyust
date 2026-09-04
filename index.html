@@ -1,300 +1,40 @@
-<!DOCTYPE html>
-<html lang="en">
-	<head>
-		<title>three.js webgl - GLTFloader</title>
-		<meta charset="utf-8">
-		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-	</head>
-
-	<body>
-		<div id="info">
-			<a href="https://threejs.org" target="_blank" rel="noopener">three.js</a> - GLTFLoader<br />
-			<a href="https://hdrihaven.com/hdri/?h=royal_esplanade" target="_blank" rel="noopener">Royal Esplanade</a> from <a href="https://hdrihaven.com/" target="_blank" rel="noopener">HDRI Haven</a>
-		</div>
-
-		<link type="text/css" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/three@0.164.0/examples/css/main.css">
-
-		<script type="importmap">
-			{
-				"imports": {
-					"three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
-					"three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
-				}
-			}
-		</script>
-
-		<script type="module">
-
-			import * as THREE from 'three';
-
-			import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-			import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-			import { GUI } from 'three/addons/libs/lil-gui.module.min.js';
-
-			let camera, scene, renderer, controls;
-			let currentModel, mixer;
-			const annotations = [];
-			let currentLoadId = 0;
-
-			const clock = new THREE.Clock();
-
-			init();
-
-			function init() {
-
-				const container = document.createElement( 'div' );
-				document.body.appendChild( container );
-
-				camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.25, 20 );
-				camera.position.set( - 1.8, 0.6, 2.7 );
-
-				scene = new THREE.Scene();
-					scene.background = new THREE.Color( 0x222222 );
-
-					const ambient = new THREE.AmbientLight( 0xffffff, 0.6 );
-					scene.add( ambient );
-
-					const directional = new THREE.DirectionalLight( 0xffffff, 0.8 );
-					directional.position.set( 5, 10, 7 );
-					scene.add( directional );
-
-				renderer = new THREE.WebGLRenderer( { antialias: true } );
-				renderer.setPixelRatio( window.devicePixelRatio );
-				renderer.setSize( window.innerWidth, window.innerHeight );
-				renderer.toneMapping = THREE.ACESFilmicToneMapping;
-				container.appendChild( renderer.domElement );
-				renderer.setAnimationLoop( render );
-
-				// load local model
-				const loader = new GLTFLoader();
-				loader.load( 'models/gltf/scene.gltf', function ( gltf ) {
-
-					currentModel = gltf.scene;
-
-					// wait until the model can be added to the scene without blocking due to shader compilation
-					renderer.compileAsync( currentModel, camera, scene ).then( () => {
-
-						scene.add( currentModel );
-						createAnnotations();
-
-						fitCameraToSelection( camera, controls, currentModel );
-
-						// animations
-						if ( gltf.animations.length > 0 ) {
-
-							mixer = new THREE.AnimationMixer( currentModel );
-
-							for ( const animation of gltf.animations ) {
-
-								mixer.clipAction( animation ).play();
-
-							}
-
-						}
-
-					} );
-
-				} );
-
-				controls = new OrbitControls( camera, renderer.domElement );
-				controls.enableDamping = true;
-				controls.minDistance = 2;
-				controls.maxDistance = 10;
-				controls.target.set( 0, 0, - 0.2 );
-				controls.update();
-
-				window.addEventListener( 'resize', onWindowResize );
-
-			}
-
-			function loadModel( modelInfo ) {
-
-				const variants = modelInfo.variants;
-				const variant = variants[ 'glTF-Binary' ] || variants[ 'glTF' ];
-				const url = `https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Assets/main/Models/${ modelInfo.name }/${ variant.endsWith( '.glb' ) ? 'glTF-Binary' : 'glTF' }/${ variant }`;
-
-				if ( currentModel ) {
-
-					scene.remove( currentModel );
-					currentModel = null;
-
-				}
-
-				if ( mixer ) {
-
-					mixer.stopAllAction();
-					mixer = null;
-
-				}
-
-				const loadId = ++ currentLoadId;
-
-				const loader = new GLTFLoader();
-				loader.load( url, async function ( gltf ) {
-
-					if ( loadId !== currentLoadId ) return;
-
-					currentModel = gltf.scene;
-
-					// wait until the model can be added to the scene without blocking due to shader compilation
-
-					await renderer.compileAsync( currentModel, camera, scene );
-
-					if ( loadId !== currentLoadId ) return;
-
-					scene.add( currentModel );
-
-					fitCameraToSelection( camera, controls, currentModel );
-
-					// animations
-
-					if ( gltf.animations.length > 0 ) {
-
-						mixer = new THREE.AnimationMixer( currentModel );
-
-						for ( const animation of gltf.animations ) {
-
-							mixer.clipAction( animation ).play();
-
-						}
-
-					}
-
-				} );
-
-			}
-
-			function createAnnotations() {
-
-	// очистка старых
-	for (const ann of annotations) {
-		ann.element.remove();
-	}
-	annotations.length = 0;
-
-	// пример точек (можешь менять координаты)
-	const points = [
-		{ position: new THREE.Vector3(0, 0.5, 0), label: "Точка №1" },
-		{ position: new THREE.Vector3(0.5, 0.2, 0), label: "Точка №2" }
-	];
-
-	for (const p of points) {
-
-		const div = document.createElement('div');
-		div.className = 'annotation';
-		div.dataset.label = p.label;
-		document.body.appendChild(div);
-
-		annotations.push({
-			position: p.position,
-			element: div
-		});
-	}
-}
-			function fitCameraToSelection( camera, controls, selection, fitOffset = 1.3 ) {
-
-				const box = new THREE.Box3();
-				box.setFromObject( selection );
-
-				const size = box.getSize( new THREE.Vector3() );
-				const center = box.getCenter( new THREE.Vector3() );
-
-				const maxSize = Math.max( size.x, size.y, size.z );
-				const fitHeightDistance = maxSize / ( 2 * Math.atan( Math.PI * camera.fov / 360 ) );
-				// const fitWidthDistance = fitHeightDistance / camera.aspect;
-				// const distance = fitOffset * Math.max( fitHeightDistance, fitWidthDistance );
-				const distance = fitOffset * fitHeightDistance;
-
-				const direction = controls.target.clone().sub( camera.position ).normalize().multiplyScalar( distance );
-
-				controls.maxDistance = distance * 10;
-				controls.minDistance = distance / 10;
-				controls.target.copy( center );
-
-				camera.near = distance / 100;
-				camera.far = distance * 100;
-				camera.updateProjectionMatrix();
-
-				camera.position.copy( controls.target ).sub( direction );
-
-				controls.update();
-
-			}
-
-			function onWindowResize() {
-
-				camera.aspect = window.innerWidth / window.innerHeight;
-				camera.updateProjectionMatrix();
-
-				renderer.setSize( window.innerWidth, window.innerHeight );
-
-				render();
-
-			}
-
-			//
-			function updateAnnotations() {
-
-	for (const ann of annotations) {
-
-		const pos = ann.position.clone();
-
-		// если модель есть — привязываем к ней
-		if (currentModel) {
-			currentModel.localToWorld(pos);
-		}
-
-		pos.project(camera);
-
-		const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
-		const y = (-pos.y * 0.5 + 0.5) * window.innerHeight;
-
-		ann.element.style.left = `${x}px`;
-		ann.element.style.top = `${y}px`;
-
-		// скрытие если за камерой
-		ann.element.style.display = pos.z < 1 ? 'block' : 'none';
-	}
-}
-
-			function render() {
-
-				const delta = clock.getDelta();
-
-				controls.update();
-
-				if ( mixer ) mixer.update( delta );
-
-				renderer.render( scene, camera );
-				
-				updateAnnotations();
-			}
-
-		</script>
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Интерактивная галерея 3D-моделей с аннотациями">
+<title>Object Notes — 3D-галерея</title>
 <style>
-.annotation {
-	position: absolute;
-	width: 14px;
-	height: 14px;
-	border-radius: 50%;
-	background: rgb(254, 254, 254);
-	cursor: pointer;
-	transform: translate(-50%, -50%);
-}
-
-.annotation:hover::after {
-	content: attr(data-label);
-	position: absolute;
-	top: -30px;
-	left: 50%;
-	transform: translateX(-50%);
-	background: black;
-	color: white;
-	padding: 4px 8px;
-	font-size: 12px;
-	border-radius: 4px;
-	white-space: nowrap;
-}
+:root{color-scheme:dark;--ink:#f4f3ef;--muted:#aaa9a4;--panel:rgba(20,21,20,.8);--line:rgba(255,255,255,.13);--accent:#d8ff5f}*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0;overflow:hidden}body{background:#111311;color:var(--ink);font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif}#viewer{position:fixed;inset:0}canvas{display:block;width:100%;height:100%}.topbar{position:fixed;z-index:10;top:20px;left:20px;right:20px;display:flex;align-items:center;justify-content:space-between;gap:20px;pointer-events:none}.brand,.toolbar,.hint,.credits-button{border:1px solid var(--line);background:var(--panel);box-shadow:0 14px 50px #0003;backdrop-filter:blur(18px)}.brand{display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:14px}.mark{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 18px #d8ff5fb3}.brand-copy{line-height:1.05}.brand-title{display:block;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}.brand-subtitle{display:block;margin-top:4px;color:var(--muted);font-size:11px}.toolbar{display:flex;align-items:end;gap:8px;padding:8px;border-radius:16px;pointer-events:auto}.field{display:grid;gap:5px}.field label{padding-left:4px;color:var(--muted);font-size:10px;letter-spacing:.09em;text-transform:uppercase}select,.icon-button{height:42px;border:1px solid var(--line);border-radius:10px;background:#ffffff12;color:var(--ink);font:inherit}select{min-width:220px;padding:0 38px 0 13px;cursor:pointer}.icon-button{width:42px;padding:0;cursor:pointer;transition:.2s}.icon-button:hover{background:#ffffff20;transform:translateY(-1px)}select:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}.hint{position:fixed;z-index:8;left:20px;bottom:20px;max-width:min(390px,calc(100vw - 110px));padding:12px 15px;border-radius:12px;color:var(--muted);font-size:12px;line-height:1.45;pointer-events:none}.hint strong{color:var(--ink)}.credits-button{position:fixed;z-index:10;right:20px;bottom:20px;width:42px;height:42px;border-radius:50%;color:var(--ink);font:600 14px inherit;cursor:pointer}.annotation{position:fixed;z-index:5;width:24px;height:24px;margin:-12px 0 0 -12px;border:0;border-radius:50%;background:transparent;cursor:pointer;transition:.18s}.annotation:before{content:"";position:absolute;inset:6px;border:2px solid #171912;border-radius:inherit;background:var(--accent);box-shadow:0 0 0 3px #d8ff5f38,0 3px 16px #0007}.annotation:after{content:attr(aria-label);position:absolute;left:50%;bottom:calc(100% + 10px);padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:#0d0e0ded;color:var(--ink);font-size:11px;font-weight:600;line-height:1;white-space:nowrap;opacity:0;transform:translate(-50%,4px);transition:.16s;pointer-events:none}.annotation:hover,.annotation:focus-visible{transform:scale(1.18)}.annotation:hover:after,.annotation:focus-visible:after{opacity:1;transform:translate(-50%,0)}.annotation.active:before{background:#fff;box-shadow:0 0 0 5px #d8ff5f59,0 3px 18px #0008}.loader{position:fixed;z-index:20;inset:0;display:grid;place-items:center;background:#0d0f0db3;opacity:0;visibility:hidden;transition:.25s;pointer-events:none}.loader.visible{opacity:1;visibility:visible}.loader-card{display:grid;justify-items:center;gap:14px;color:var(--muted);font-size:12px;letter-spacing:.08em;text-transform:uppercase}.spinner{width:34px;height:34px;border:2px solid #ffffff26;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}dialog{width:min(520px,calc(100vw - 32px));border:1px solid var(--line);border-radius:18px;background:#1b1d1a;color:var(--ink);box-shadow:0 28px 90px #0009}dialog::backdrop{background:#000a;backdrop-filter:blur(6px)}.dialog-inner{padding:8px 10px 10px}.dialog-head{display:flex;align-items:center;justify-content:space-between}.dialog-head h2{margin:10px 0;font-size:20px}.dialog-close{border:0;background:transparent;color:var(--muted);font-size:24px;cursor:pointer}.credit-list{margin:8px 0;padding:0;list-style:none}.credit-list li{padding:14px 0;border-top:1px solid var(--line);color:var(--muted);font-size:13px;line-height:1.5}.credit-list strong{display:block;color:var(--ink)}.credit-list a{color:var(--accent)}.toast{position:fixed;z-index:30;left:50%;bottom:24px;padding:12px 16px;border:1px solid #ff826e66;border-radius:10px;background:#321d1a;color:#ffd4cc;font-size:13px;opacity:0;transform:translate(-50%,12px);transition:.2s;pointer-events:none}.toast.visible{opacity:1;transform:translate(-50%,0)}@media(max-width:640px){.topbar{top:12px;left:12px;right:12px;align-items:stretch;flex-direction:column;gap:8px}.brand{align-self:flex-start}.toolbar{align-self:stretch}.field{flex:1}select{width:100%;min-width:0}.hint{left:12px;bottom:12px}.credits-button{right:12px;bottom:12px}}@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important}}
 </style>
-	</body>
-</html>
+</head>
+<body>
+<main id="viewer" aria-label="Интерактивная 3D-сцена"></main>
+<header class="topbar"><div class="brand"><span class="mark"></span><span class="brand-copy"><span class="brand-title">Object Notes</span><span class="brand-subtitle">Интерактивная коллекция</span></span></div><div class="toolbar"><div class="field"><label for="model-select">Модель</label><select id="model-select" aria-label="Выберите 3D-модель"></select></div><button class="icon-button" id="reset" type="button" aria-label="Показать модель целиком" title="Показать целиком">↗</button></div></header>
+<div class="hint"><strong>Выберите точку</strong>, чтобы приблизиться. Мышь — вращение, колесо — масштаб.</div><button class="credits-button" id="credits-open" type="button" aria-label="Авторы и лицензии">i</button>
+<div class="loader visible" id="loader" role="status"><div class="loader-card"><span class="spinner"></span><span id="loader-text">Загрузка модели…</span></div></div><div class="toast" id="toast" role="alert"></div>
+<dialog id="credits"><div class="dialog-inner"><div class="dialog-head"><h2>Авторы моделей</h2><button class="dialog-close" id="credits-close" type="button" aria-label="Закрыть">×</button></div><ul class="credit-list"><li><strong>Lamp</strong>Aaron_Beller — <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. <a href="https://sketchfab.com/3d-models/lamp-c85c7a1dbb724e9ea1d90abd6445fad4" target="_blank" rel="noopener">Sketchfab</a>.</li><li><strong>Avocado</strong>Microsoft — <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0 1.0</a>. <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Avocado" target="_blank" rel="noopener">Khronos</a>.</li><li><strong>Boom Box</strong>Microsoft — <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0 1.0</a>. <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BoomBox" target="_blank" rel="noopener">Khronos</a>.</li></ul></div></dialog>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';import{OrbitControls}from'three/addons/controls/OrbitControls.js';import{GLTFLoader}from'three/addons/loaders/GLTFLoader.js';
+const configs=[
+{id:'lamp',name:'Lamp / Настольная лампа',url:'./models/gltf/scene.gltf',points:[[[.02,.84,.17],'Абажур'],[[.02,.30,.30],'Лампа'],[[.02,-.84,.20],'Основание']]},
+{id:'avocado',name:'Avocado / Авокадо',url:'./models/avocado/Avocado.glb',points:[[[.04,.06,.59],'Косточка'],[[-.58,.10,.26],'Мякоть'],[[.54,-.48,.08],'Кожура']]},
+{id:'boombox',name:'Boom Box / Магнитола',url:'./models/boombox/BoomBox.glb',points:[[[-.62,-.17,.39],'Дисплей'],[[.62,-.17,.39],'Кнопки управления'],[[0,.36,.42],'Верхняя панель']]}
+];
+const viewer=document.querySelector('#viewer'),select=document.querySelector('#model-select'),loaderEl=document.querySelector('#loader'),loaderText=document.querySelector('#loader-text'),toast=document.querySelector('#toast'),reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x111311);scene.fog=new THREE.Fog(0x111311,7,13);const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.01,100);camera.position.set(3.2,1.8,4.3);const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;viewer.appendChild(renderer.domElement);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.065;controls.target.set(0,0,0);scene.add(new THREE.HemisphereLight(0xe8eeff,0x24291d,2.2));const key=new THREE.DirectionalLight(0xffffff,3.3);key.position.set(4,6,5);scene.add(key);const rim=new THREE.DirectionalLight(0xb9d5ff,2.1);rim.position.set(-5,1,-4);scene.add(rim);const floor=new THREE.Mesh(new THREE.CircleGeometry(3.8,96),new THREE.MeshStandardMaterial({color:0x171a16,roughness:1}));floor.rotation.x=-Math.PI/2;floor.position.y=-1.31;scene.add(floor);
+const gltfLoader=new GLTFLoader(),clock=new THREE.Clock(),annotations=[];let root=null,mixer=null,tween=null,token=0;
+configs.forEach(c=>{const o=document.createElement('option');o.value=c.id;o.textContent=c.name;select.appendChild(o)});select.onchange=()=>load(configs.find(c=>c.id===select.value));document.querySelector('#reset').onclick=()=>root&&fit(root,true);const dialog=document.querySelector('#credits');document.querySelector('#credits-open').onclick=()=>dialog.showModal();document.querySelector('#credits-close').onclick=()=>dialog.close();dialog.onclick=e=>{if(e.target===dialog)dialog.close()};addEventListener('resize',resize);renderer.setAnimationLoop(render);load(configs[0],false);
+function load(config,animate=true){const id=++token;select.value=config.id;loading(true,`Загрузка: ${config.name.split(' / ')[0]}…`);clearPoints();gltfLoader.load(config.url,async gltf=>{if(id!==token)return;const next=normalize(gltf.scene);await renderer.compileAsync(next,camera,scene);if(id!==token)return;if(root){scene.remove(root);dispose(root)}if(mixer)mixer.stopAllAction();root=next;scene.add(root);createPoints(config.points);mixer=gltf.animations.length?new THREE.AnimationMixer(gltf.scene):null;if(mixer)gltf.animations.forEach(a=>mixer.clipAction(a).play());fit(root,animate);loading(false)},e=>{if(e.total&&id===token)loaderText.textContent=`Загрузка: ${Math.round(e.loaded/e.total*100)}%`},e=>{console.error(e);if(id===token){loading(false);error('Не удалось загрузить модель. Обновите страницу.')}})}
+function normalize(model){model.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(model),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3()),scale=2.45/Math.max(size.x,size.y,size.z);model.scale.multiplyScalar(scale);model.position.copy(center).multiplyScalar(-scale);const group=new THREE.Group();group.add(model);group.updateMatrixWorld(true);return group}
+function createPoints(points){clearPoints();points.forEach((p,i)=>{const el=document.createElement('button');el.type='button';el.className='annotation';el.setAttribute('aria-label',p[1]);el.title=p[1];el.onclick=e=>{e.stopPropagation();focus(i)};document.body.appendChild(el);annotations.push({element:el,position:new THREE.Vector3(...p[0])})})}function clearPoints(){annotations.forEach(a=>a.element.remove());annotations.length=0}
+function focus(i){const a=annotations[i];if(!a||!root)return;annotations.forEach((x,j)=>x.element.classList.toggle('active',i===j));const target=a.position.clone();root.localToWorld(target);const direction=camera.position.clone().sub(controls.target).normalize(),distance=THREE.MathUtils.clamp(camera.position.distanceTo(controls.target)*.5,.7,2.2);fly(target.clone().addScaledVector(direction,distance),target,850)}
+function fit(object,animate=true){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),h=size.y/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))),w=size.x/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*camera.aspect),distance=Math.max(h,w,size.z*.72)*1.32,direction=new THREE.Vector3(.72,.34,1).normalize(),position=center.clone().addScaledVector(direction,distance);controls.minDistance=Math.max(.35,distance*.18);controls.maxDistance=distance*5;camera.near=Math.max(.01,distance/100);camera.far=Math.max(40,distance*50);camera.updateProjectionMatrix();annotations.forEach(a=>a.element.classList.remove('active'));animate?fly(position,center,1050):(camera.position.copy(position),controls.target.copy(center),controls.update())}
+function fly(position,target,duration){if(reduced){camera.position.copy(position);controls.target.copy(target);controls.update();return}tween={start:performance.now(),duration,fromP:camera.position.clone(),toP:position.clone(),fromT:controls.target.clone(),toT:target.clone()}}
+function updateTween(time){if(!tween)return;const p=Math.min(1,(time-tween.start)/tween.duration),e=1-Math.pow(1-p,4);camera.position.lerpVectors(tween.fromP,tween.toP,e);controls.target.lerpVectors(tween.fromT,tween.toT,e);if(p===1)tween=null}
+function updatePoints(){if(!root)return;const rect=renderer.domElement.getBoundingClientRect();annotations.forEach(a=>{const p=a.position.clone();root.localToWorld(p);p.project(camera);const visible=p.z>-1&&p.z<1&&Math.abs(p.x)<1.05&&Math.abs(p.y)<1.05;a.element.hidden=!visible;if(visible){a.element.style.left=`${rect.left+(p.x*.5+.5)*rect.width}px`;a.element.style.top=`${rect.top+(-p.y*.5+.5)*rect.height}px`}})}
+function render(time){updateTween(time);controls.update();if(mixer)mixer.update(Math.min(clock.getDelta(),.05));renderer.render(scene,camera);updatePoints()}function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight)}function loading(on,text='Загрузка модели…'){loaderText.textContent=text;loaderEl.classList.toggle('visible',on);select.disabled=on}function error(text){toast.textContent=text;toast.classList.add('visible');setTimeout(()=>toast.classList.remove('visible'),4500)}function dispose(object){object.traverse(c=>{if(!c.isMesh)return;c.geometry?.dispose();(Array.isArray(c.material)?c.material:[c.material]).forEach(m=>{if(!m)return;Object.values(m).forEach(v=>v?.isTexture&&v.dispose());m.dispose()})})}
+</script>
+</body></html>
