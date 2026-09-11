@@ -1,0 +1,18 @@
+[hidden]{display:none!important}
+.annotation-toolbar{position:fixed;top:110px;right:20px;z-index:10;display:flex;gap:8px;flex-wrap:wrap}
+.annotation-toolbar button,.actions button{min-height:42px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#242821;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+.annotation-toolbar button[aria-pressed=true],.actions .primary,#tour-start{background:var(--accent);color:#19200b}
+.placing{cursor:crosshair}
+.point-panel{position:fixed;z-index:9;right:20px;bottom:80px;width:min(360px,calc(100vw - 40px));max-height:calc(100dvh - 250px);overflow:auto;padding:20px;border:1px solid var(--line);border-radius:16px;background:rgba(20,21,20,.96);box-shadow:0 14px 50px #0005}
+.point-count,.storage-note{color:var(--muted);font-size:12px;line-height:1.5}
+.point-panel h2{font-size:22px;margin:8px 0;overflow-wrap:anywhere}
+#point-description{font-size:14px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:18px}
+.actions .danger{color:#ffb6a8}
+#point-form label{display:block;margin:16px 0 6px;font-size:13px}
+#point-form input,#point-form textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#111311;color:var(--ink);font:inherit}
+#point-form textarea{resize:vertical;max-height:35dvh}
+#point-form input:focus-visible,#point-form textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#point-editor{max-height:calc(100dvh - 24px);overflow:auto}
+@media(max-width:640px){.annotation-toolbar{top:172px;left:12px;right:12px}.annotation-toolbar button{flex:1;padding:9px;font-size:12px}.point-panel{right:12px;bottom:90px;width:calc(100vw - 24px);max-height:calc(100dvh - 330px);padding:14px}.hint{font-size:11px}}
