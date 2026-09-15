@@ -4,17 +4,22 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   const edit = $('edit-mode'), start = $('tour-start'), panel = $('point-panel');
   const dialog = $('point-editor'), form = $('point-form');
   let model = null, points = [], selected = -1, editing = false, touring = false, ready = false;
-  let draft = null, down = null;
+  let draft = null, down = null, dragged = null, generation = 0;
+  const list = $('tour-order'), upload = $('points-file');
   const pointers = new Set();
   const raycaster = new THREE.Raycaster();
   const vector = value => Array.isArray(value) && value.length === 3 && value.every(Number.isFinite);
-  const valid = p => p && typeof p.title === 'string' && typeof p.description === 'string' && vector(p.position) && (!p.view || (vector(p.view.position) && vector(p.view.target)));
+  const valid = p => p && typeof p.title === 'string' && typeof p.description === 'string' && vector(p.position) && (p.view == null || (vector(p.view.position) && vector(p.view.target)));
   const key = () => `object-notes:annotations:v1:${model.id}`;
 
   function refresh() {
     createPoints(points.map(p => [p.position, p.title]));
     edit.disabled = !ready;
     start.disabled = !ready || !points.length;
+    $('points-download').disabled = !ready;
+    $('points-upload').disabled = !ready;
+    $('order-panel').hidden = !ready || !editing;
+    renderOrder();
     edit.setAttribute('aria-pressed', String(editing));
     edit.textContent = editing ? 'Завершить редактирование' : 'Редактор точек';
     canvas.classList.toggle('placing', editing);
@@ -23,6 +28,116 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
       : 'Выберите точку, чтобы приблизиться. Мышь — вращение, колесо — масштаб.';
     showPanel();
   }
+
+  function renderOrder() {
+    list.replaceChildren();
+    $('order-status').textContent = '';
+    $('order-empty').hidden = points.length > 0;
+    points.forEach((point, index) => {
+      const row = document.createElement('li');
+      row.className = 'order-row';
+      row.dataset.index = index;
+      row.draggable = true;
+      const handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '⠿';
+      handle.setAttribute('aria-hidden', 'true');
+      const title = document.createElement('button');
+      title.type = 'button';
+      title.className = 'order-title';
+      title.textContent = `${index + 1}. ${point.title}`;
+      title.onclick = () => openEditor(index);
+      row.append(handle, title);
+      for (const [offset, label, symbol] of [[-1, 'Выше', '↑'], [1, 'Ниже', '↓']]) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.textContent = symbol;
+        button.dataset.offset = offset;
+        button.setAttribute('aria-label', `${label}: ${point.title}`);
+        button.disabled = index + offset < 0 || index + offset >= points.length;
+        button.onclick = () => {
+          if (reorder(index, index + offset)) {
+            const moved = list.children[index + offset];
+            const control = moved.querySelector(`[data-offset="${offset}"]`);
+            (control.disabled ? moved.querySelector('.order-title') : control).focus();
+          }
+        };
+        row.append(button);
+      }
+      row.ondragstart = event => {
+        dragged = index;
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', String(index));
+        row.classList.add('dragging');
+      };
+      row.ondragover = event => {
+        if (dragged === null) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = 'move';
+        row.classList.add('drop-target');
+      };
+      row.ondragleave = () => row.classList.remove('drop-target');
+      row.ondrop = event => {
+        event.preventDefault();
+        row.classList.remove('drop-target');
+        if (dragged !== null) reorder(dragged, index);
+        dragged = null;
+      };
+      row.ondragend = () => {
+        dragged = null;
+        list.querySelectorAll('li').forEach(el => el.classList.remove('dragging', 'drop-target'));
+      };
+      list.append(row);
+    });
+  }
+
+  function reorder(from, to) {
+    if (!ready || !editing || from === to || !points[from] || !points[to]) return false;
+    const next = points.slice(), active = points[selected], previous = selected;
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    selected = next.indexOf(active);
+    if (!save(next)) { selected = previous; return false; }
+    $('order-status').textContent = `Точка «${next[to].title}»: место ${to + 1} из ${next.length}.`;
+    return true;
+  }
+
+  $('points-download').onclick = () => {
+    if (!ready) return;
+    const data = {format: 'object-notes', version: 1, modelId: model.id, points};
+    const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${model.id}-points.json`;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  };
+  $('points-upload').onclick = () => { if (ready) { upload.value = ''; upload.click(); } };
+  upload.onchange = async () => {
+    const file = upload.files[0], current = generation;
+    if (!file || !ready) return;
+    let data;
+    try {
+      data = JSON.parse(await file.text());
+      if (!data || data.format !== 'object-notes' || data.version !== 1 ||
+          typeof data.modelId !== 'string' || !Array.isArray(data.points) || !data.points.every(valid)) {
+        throw new Error('Invalid annotation file');
+      }
+    } catch { notify('Не удалось загрузить точки: файл повреждён или имеет неподдерживаемый формат.'); return; }
+    if (!ready || current !== generation) { notify('Модель изменилась. Выберите файл заново.'); return; }
+    if (data.modelId !== model.id) { notify('Этот файл относится к другой модели. Сначала выберите соответствующую модель.'); return; }
+    if (!window.confirm(`Заменить все текущие точки (${points.length}) точками из файла (${data.points.length})? Для резервной копии текущих точек нажмите «Отмена», затем «Скачать точки».`)) return;
+    const next = data.points.map(p => ({title: p.title, description: p.description, position: p.position,
+      ...(p.view ? {view: {position: p.view.position, target: p.view.target}} : {})}));
+    const previous = {selected, touring};
+    selected = -1; touring = false;
+    if (save(next)) {
+      controls.enabled = true;
+      fit(getRoot(), true);
+      notify(`Загружено точек: ${points.length}. Порядок экскурсии восстановлен.`);
+    } else { selected = previous.selected; touring = previous.touring; }
+  };
 
   function showPanel() {
     const p = points[selected];
@@ -131,9 +246,9 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   return {
     select(index) { if (touring) return; editing ? openEditor(index) : visit(index); },
     reset: exitTour,
-    unload() { ready = false; touring = false; editing = false; selected = -1; points = []; controls.enabled = true; dialog.close(); refresh(); },
+    unload() { generation++; dragged = null; ready = false; touring = false; editing = false; selected = -1; points = []; controls.enabled = true; dialog.close(); refresh(); },
     load(config) {
-      model = config; ready = true;
+      generation++; model = config; ready = true;
       points = config.points.map(([position, title]) => ({position, title, description: ''}));
       try {
         const stored = localStorage.getItem(key());

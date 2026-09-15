@@ -12,7 +12,15 @@
 <body>
 <main id="viewer" aria-label="Интерактивная 3D-сцена"></main>
 <header class="topbar"><div class="brand"><span class="mark"></span><span class="brand-copy"><span class="brand-title">Object Notes</span><span class="brand-subtitle">Интерактивная коллекция</span></span></div><div class="toolbar"><div class="field"><label for="model-select">Модель</label><select id="model-select" aria-label="Выберите 3D-модель"></select></div><button class="icon-button" id="reset" type="button" aria-label="Показать модель целиком" title="Показать целиком">↗</button></div></header>
-<div class="annotation-toolbar"><button id="edit-mode" type="button" disabled aria-pressed="false">Редактор точек</button><button id="tour-start" type="button" disabled>Начать экскурсию</button></div>
+<div class="annotation-toolbar"><button id="edit-mode" type="button" disabled aria-pressed="false">Редактор точек</button><button id="tour-start" type="button" disabled>Начать экскурсию</button><button id="points-download" type="button" disabled>Скачать точки</button><button id="points-upload" type="button" disabled>Загрузить точки</button></div>
+<input id="points-file" type="file" accept=".json,application/json" hidden>
+<section id="order-panel" class="point-panel order-panel" hidden aria-labelledby="order-title">
+  <h2 id="order-title">Порядок экскурсии</h2>
+  <p class="storage-note">Перетащите точку на нужное место или используйте стрелки. Нажмите название, чтобы изменить точку. Порядок сохраняется автоматически.</p>
+  <ol id="tour-order" aria-label="Точки в порядке экскурсии"></ol>
+  <p id="order-empty" class="storage-note">Точек пока нет. Кликните по поверхности модели, чтобы добавить первую.</p>
+  <p id="order-status" class="storage-note" role="status" aria-live="polite"></p>
+</section>
 <div class="hint" id="viewer-hint">Выберите точку, чтобы приблизиться. Мышь — вращение, колесо — масштаб.</div><button class="credits-button" id="credits-open" type="button" aria-label="Авторы и лицензии">i</button>
 <section id="point-panel" class="point-panel" hidden aria-label="Аннотация">
   <div aria-live="polite" aria-atomic="true"><p id="point-count" class="point-count"></p><h2 id="point-title"></h2><p id="point-description"></p></div>
@@ -23,15 +31,23 @@
   <h2 id="editor-title">Новая точка</h2>
   <label for="annotation-title">Название</label><input id="annotation-title" maxlength="120" required autocomplete="off">
   <label for="annotation-description">Описание</label><textarea id="annotation-description" maxlength="4000" rows="5"></textarea>
-  <p class="storage-note">Точки сохраняются для этой модели в текущем браузере. Порядок экскурсии — порядок добавления точек.</p>
+  <p class="storage-note">Точки сохраняются для этой модели в текущем браузере. Для резервной копии нажмите «Скачать точки». Порядок экскурсии можно изменить в списке редактора.</p>
   <div class="actions"><button type="submit" class="primary">Сохранить</button><button id="editor-cancel" type="button">Отмена</button><button id="point-delete" class="danger" type="button">Удалить точку</button></div>
 </form></dialog>
 <div class="loader visible" id="loader" role="status"><div class="loader-card"><span class="spinner"></span><span id="loader-text">Загрузка модели…</span></div></div><div class="toast" id="toast" role="alert"></div>
 <dialog id="credits"><div class="dialog-inner"><div class="dialog-head"><h2>Авторы моделей</h2><button class="dialog-close" id="credits-close" type="button" aria-label="Закрыть">×</button></div><ul class="credit-list"><li><strong>Lamp</strong>Aaron_Beller — <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. <a href="https://sketchfab.com/3d-models/lamp-c85c7a1dbb724e9ea1d90abd6445fad4" target="_blank" rel="noopener">Sketchfab</a>.</li><li><strong>Avocado</strong>Microsoft — <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0 1.0</a>. <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Avocado" target="_blank" rel="noopener">Khronos</a>.</li><li><strong>Boom Box</strong>Microsoft — <a href="https://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noopener">CC0 1.0</a>. <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BoomBox" target="_blank" rel="noopener">Khronos</a>.</li></ul></div></dialog>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"}}</script>
 <script type="module">
-import * as THREE from 'three';import{OrbitControls}from'three/addons/controls/OrbitControls.js';import{GLTFLoader}from'three/addons/loaders/GLTFLoader.js';
-import {annotationEditor} from './annotations.js';
+if (location.protocol === 'file:') {
+  document.querySelector('#loader .spinner').hidden = true;
+  const message = document.querySelector('#loader-text');
+  message.style.cssText = 'max-width:440px;padding:24px;text-align:center;line-height:1.7;letter-spacing:normal;text-transform:none';
+  message.textContent = 'Для запуска откройте start.cmd в папке проекта. Он запустит локальный сервер и откроет галерею в браузере. Не закрывайте окно сервера во время работы.';
+} else {
+const [THREE, {OrbitControls}, {GLTFLoader}, {annotationEditor}] = await Promise.all([
+  import('three'), import('three/addons/controls/OrbitControls.js'),
+  import('three/addons/loaders/GLTFLoader.js'), import('./annotations.js')
+]);
 const configs=[
 {id:'lamp',name:'Lamp / Настольная лампа',url:'./models/gltf/scene.gltf',points:[[[.02,.84,.17],'Абажур'],[[.02,.30,.30],'Лампа'],[[.02,-.84,.20],'Основание']]},
 {id:'avocado',name:'Avocado / Авокадо',url:'./models/avocado/Avocado.glb',points:[[[.04,.06,.59],'Косточка'],[[-.58,.10,.26],'Мякоть'],[[.54,-.48,.08],'Кожура']]},
@@ -51,5 +67,6 @@ function fly(position,target,duration){tween=null;if(reduced){camera.position.co
 function updateTween(time){if(!tween)return;const p=Math.min(1,(time-tween.start)/tween.duration),e=1-Math.pow(1-p,4);camera.position.lerpVectors(tween.fromP,tween.toP,e);controls.target.lerpVectors(tween.fromT,tween.toT,e);if(p===1)tween=null}
 function updatePoints(){if(!root)return;const rect=renderer.domElement.getBoundingClientRect();annotations.forEach(a=>{const p=a.position.clone();root.localToWorld(p);p.project(camera);const visible=p.z>-1&&p.z<1&&Math.abs(p.x)<1.05&&Math.abs(p.y)<1.05;a.element.hidden=!visible;if(visible){a.element.style.left=`${rect.left+(p.x*.5+.5)*rect.width}px`;a.element.style.top=`${rect.top+(-p.y*.5+.5)*rect.height}px`}})}
 function render(time){updateTween(time);controls.update();if(mixer)mixer.update(Math.min(clock.getDelta(),.05));renderer.render(scene,camera);updatePoints()}function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight)}function loading(on,text='Загрузка модели…'){loaderText.textContent=text;loaderEl.classList.toggle('visible',on);select.disabled=on}function error(text){toast.textContent=text;toast.classList.add('visible');setTimeout(()=>toast.classList.remove('visible'),4500)}function dispose(object){object.traverse(c=>{if(!c.isMesh)return;c.geometry?.dispose();(Array.isArray(c.material)?c.material:[c.material]).forEach(m=>{if(!m)return;Object.values(m).forEach(v=>v?.isTexture&&v.dispose());m.dispose()})})}
+}
 </script>
 </body></html>
