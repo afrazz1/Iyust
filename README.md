@@ -25,6 +25,7 @@
 
 ## Модели и лицензии
 
+- **Витрина 1** — модель команды из файла [Витрина_1.glb](https://drive.google.com/file/d/1fZg4WVw3hK5fpcIr8xGgtq7QeWZ8aUM_/view), открывается первой. Аннотации можно добавить через «Редактор точек». Исходный файл размером около 182 МБ разделён на `models/vitrina-1/scene.gltf`, геометрию и текстуры без изменения их качества; каждый файл меньше 50 МБ. Повторный импорт: `node scripts/import-vitrina.cjs "путь/Витрина_1.glb"`. Первая загрузка может занять время из-за крупных текстур. Публичная лицензия для этой модели не указана.
 - **Lamp** — Aaron_Beller, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [оригинал](https://sketchfab.com/3d-models/lamp-c85c7a1dbb724e9ea1d90abd6445fad4).
 - **Avocado** — Microsoft, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [Khronos](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Avocado).
 - **Boom Box** — Microsoft, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [Khronos](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BoomBox).

@@ -7,7 +7,8 @@ const root = __dirname;
 const url = 'http://localhost:8080';
 const types = {'.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.gltf': 'model/gltf+json',
-  '.glb': 'model/gltf-binary', '.bin': 'application/octet-stream', '.png': 'image/png'};
+  '.glb': 'model/gltf-binary', '.bin': 'application/octet-stream', '.png': 'image/png',
+  '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg'};
 const server = http.createServer((request, response) => {
   if (!['GET', 'HEAD'].includes(request.method)) {
     response.writeHead(405, {Allow: 'GET, HEAD'}).end(); return;
