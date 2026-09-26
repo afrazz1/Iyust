@@ -4,7 +4,7 @@ const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
 
 // Exercise the editor's actual event handlers without a WebGL renderer.
-function setup() {
+function setup(unlocked = true) {
   class Element {
     constructor() {
       this.children = []; this.dataset = {}; this.listeners = {};
@@ -17,6 +17,8 @@ function setup() {
     querySelector() { return this.children.find(el => el.className === 'order-title'); }
     querySelectorAll() { return this.children; }
     focus() {}
+    select() {}
+    setCustomValidity() {}
     close() { this.open = false; }
     showModal() { this.open = true; }
     click() {}
@@ -29,6 +31,8 @@ function setup() {
   class Vector3 {
     constructor(...values) { this.values = values; }
     clone() { return new Vector3(...this.values); }
+    normalize() { const n = Math.hypot(...this.values); this.values = this.values.map(v => v / n); return this; }
+    addScaledVector(v, n) { this.values = this.values.map((x, i) => x + v.values[i] * n); return this; }
   }
   const context = vm.createContext({
     document: {getElementById: $, createElement: () => new Element(), body: new Element(), querySelectorAll: () => [], addEventListener() {}},
@@ -43,9 +47,14 @@ function setup() {
   const points = ['A', 'B', 'C'].map((title, i) => ({title, description: `Text ${title}`, position: [i, 0, 0], view: {position: [i, 1, 2], target: [i, 0, 0]}}));
   const file = {format: 'object-notes', version: 1, modelId: 'lamp', points};
   editor.load({id: 'lamp', points: [[[0, 0, 0], 'Default']]});
+  const login = (code = 'экспозиция-команда') => {
+    $('edit-mode').onclick(); $('access-code').value = code;
+    $('access-form').listeners.submit({preventDefault() {}});
+  };
+  if (unlocked) login();
   const upload = async data => { $('points-file').files = [{text: async () => typeof data === 'string' ? data : JSON.stringify(data)}]; await $('points-file').onchange(); };
   const download = async () => { $('points-download').onclick(); return JSON.parse(await blob.text()); };
-  return {$, editor, controls, file, upload, download, storage, messages, visits,
+  return {$, editor, controls, file, upload, download, storage, messages, visits, login,
     rendered: () => rendered, fail: () => { failSave = true; }, cancel: () => { confirmed = false; }};
 }
 
@@ -58,7 +67,7 @@ test('JSON round trip preserves descriptions, coordinates, camera views and orde
 });
 
 test('drag and arrows persist tour order; tour follows moved camera views', async () => {
-  const s = setup(); await s.upload(s.file); s.$('edit-mode').onclick();
+  const s = setup(); await s.upload(s.file);
   const rows = s.$('tour-order').children;
   rows[0].ondragstart({dataTransfer: {setData() {}}});
   rows[2].ondrop({preventDefault() {}});
@@ -68,6 +77,7 @@ test('drag and arrows persist tour order; tour follows moved camera views', asyn
   s.$('tour-start').onclick();
   assert.equal(JSON.stringify(s.visits[0]), JSON.stringify([[2, 1, 2], [2, 0, 0]]));
   s.editor.unload(); s.editor.load({id: 'lamp', points: []});
+  s.login();
   assert.deepEqual((await s.download()).points.map(p => p.title), ['C', 'B', 'A']);
 });
 
@@ -81,11 +91,59 @@ test('invalid files, wrong model, unsupported versions and cancellation preserve
 });
 
 test('empty backup clears points; storage failure leaves current tour and data intact', async () => {
-  const s = setup(); await s.upload(s.file); s.$('tour-start').onclick(); s.fail();
+  const s = setup(); await s.upload(s.file); s.fail();
   await s.upload({...s.file, points: []});
-  assert.deepEqual(await s.download(), s.file); assert.equal(s.controls.enabled, false);
+  assert.deepEqual(await s.download(), s.file);
   const other = setup(); await other.upload({...other.file, points: []});
   assert.deepEqual(other.rendered(), []); assert.equal(other.$('tour-start').disabled, true);
+});
+
+test('view mode hides editing actions and refuses mutations; code unlocks and exit relocks', async () => {
+  const s = setup(false);
+  for (const id of ['point-edit', 'points-upload', 'points-download', 'order-panel']) assert.equal(s.$(id).hidden, true);
+  s.editor.select(0);
+  assert.equal(s.$('point-panel').hidden, false);
+  assert.equal(s.$('point-title').textContent, 'Default');
+  s.$('point-edit').onclick();
+  assert.ok(!s.$('point-editor').open);
+  s.$('point-delete').onclick();
+  s.$('point-form').listeners.submit({preventDefault() {}});
+  await s.upload(s.file);
+  assert.equal(s.storage.size, 0);
+  s.login('wrong');
+  assert.equal(s.$('editor-access').open, true);
+  assert.equal(s.$('access-error').textContent, 'Неверный код доступа.');
+  assert.equal(s.$('order-panel').hidden, true);
+  s.$('access-code').value = 'экспозиция-команда';
+  s.$('access-form').listeners.submit({preventDefault() {}});
+  assert.equal(s.$('order-panel').hidden, false);
+  await s.upload(s.file);
+  s.editor.select(0);
+  assert.equal(s.$('point-editor').open, true);
+  s.$('edit-mode').onclick();
+  assert.equal(s.$('point-editor').open, false);
+  assert.equal(s.$('points-upload').hidden, true);
+  await s.upload({...s.file, points: []});
+  assert.equal(s.rendered().length, 3);
+});
+
+test('leaving editor during file read refuses stale import even after re-entry', async () => {
+  const s = setup(); let resolve;
+  s.$('points-file').files = [{text: () => new Promise(r => { resolve = r; })}];
+  const pending = s.$('points-file').onchange();
+  s.$('edit-mode').onclick(); s.login();
+  resolve(JSON.stringify(s.file)); await pending;
+  assert.equal(s.storage.size, 0);
+});
+
+test('tour navigation visits each point in both directions and closes editor access', async () => {
+  const s = setup(); await s.upload(s.file);
+  s.$('tour-start').onclick();
+  s.$('tour-next').onclick(); s.$('tour-prev').onclick();
+  assert.deepEqual(s.visits.map(v => v[0][0]), [0, 1, 0]);
+  assert.equal(s.$('point-title').textContent, 'A');
+  assert.equal(s.$('point-description').textContent, 'Text A');
+  assert.equal(s.$('points-upload').hidden, true);
 });
 
 test('switching models while reading a file prevents stale import', async () => {

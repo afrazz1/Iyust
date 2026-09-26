@@ -1,8 +1,12 @@
 // Annotation coordinates and camera views use the normalized model's space.
+// Shared team code: change this phrase to change access to the editor.
+const EDITOR_ACCESS_CODE = 'экспозиция-команда';
+
 export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly, fit, createPoints, notify}) {
   const $ = id => document.getElementById(id);
   const edit = $('edit-mode'), start = $('tour-start'), panel = $('point-panel');
   const dialog = $('point-editor'), form = $('point-form');
+  const accessDialog = $('editor-access'), accessForm = $('access-form'), accessCode = $('access-code');
   let model = null, points = [], selected = -1, editing = false, touring = false, ready = false;
   let draft = null, down = null, dragged = null, generation = 0;
   const list = $('tour-order'), upload = $('points-file');
@@ -18,6 +22,9 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
     start.disabled = !ready || !points.length;
     $('points-download').disabled = !ready;
     $('points-upload').disabled = !ready;
+    $('points-download').hidden = !editing;
+    $('points-upload').hidden = !editing;
+    $('point-edit').hidden = !editing;
     $('order-panel').hidden = !ready || !editing;
     renderOrder();
     edit.setAttribute('aria-pressed', String(editing));
@@ -102,7 +109,7 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   }
 
   $('points-download').onclick = () => {
-    if (!ready) return;
+    if (!ready || !editing) return;
     const data = {format: 'object-notes', version: 1, modelId: model.id, points};
     const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'}));
     const link = document.createElement('a');
@@ -113,10 +120,10 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  $('points-upload').onclick = () => { if (ready) { upload.value = ''; upload.click(); } };
+  $('points-upload').onclick = () => { if (ready && editing) { upload.value = ''; upload.click(); } };
   upload.onchange = async () => {
     const file = upload.files[0], current = generation;
-    if (!file || !ready) return;
+    if (!file || !ready || !editing) return;
     let data;
     try {
       data = JSON.parse(await file.text());
@@ -125,7 +132,7 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
         throw new Error('Invalid annotation file');
       }
     } catch { notify('Не удалось загрузить точки: файл повреждён или имеет неподдерживаемый формат.'); return; }
-    if (!ready || current !== generation) { notify('Модель изменилась. Выберите файл заново.'); return; }
+    if (!ready || !editing || current !== generation) { notify('Режим или модель изменились. Выберите файл заново.'); return; }
     if (data.modelId !== model.id) { notify('Этот файл относится к другой модели. Сначала выберите соответствующую модель.'); return; }
     if (!window.confirm(`Заменить все текущие точки (${points.length}) точками из файла (${data.points.length})? Для резервной копии текущих точек нажмите «Отмена», затем «Скачать точки».`)) return;
     const next = data.points.map(p => ({title: p.title, description: p.description, position: p.position,
@@ -133,7 +140,6 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
     const previous = {selected, touring};
     selected = -1; touring = false;
     if (save(next)) {
-      controls.enabled = true;
       fit(getRoot(), true);
       notify(`Загружено точек: ${points.length}. Порядок экскурсии восстановлен.`);
     } else { selected = previous.selected; touring = previous.touring; }
@@ -153,6 +159,7 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   }
 
   function save(next) {
+    if (!ready || !editing) return false;
     try { localStorage.setItem(key(), JSON.stringify(next)); }
     catch { notify('Не удалось сохранить точки в браузере. Проверьте доступ к хранилищу.'); return false; }
     points = next;
@@ -174,6 +181,7 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   }
 
   function openEditor(index, position) {
+    if (!ready || !editing) return;
     selected = index;
     draft = index >= 0 ? points[index] : {
       title: '', description: '', position,
@@ -190,6 +198,7 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
 
   form.addEventListener('submit', event => {
     event.preventDefault();
+    if (!ready || !editing || !draft) return;
     const title = $('annotation-title').value.trim();
     if (!title) { $('annotation-title').setCustomValidity('Введите название точки.'); $('annotation-title').reportValidity(); return; }
     const next = points.slice(), p = {...draft, title, description: $('annotation-description').value.trim()};
@@ -201,19 +210,42 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   $('editor-cancel').onclick = () => dialog.close();
   dialog.addEventListener('close', () => { draft = null; $('annotation-title').setCustomValidity(''); });
   $('point-delete').onclick = () => {
+    if (!ready || !editing || !draft || selected < 0) return;
     const index = selected;
     selected = -1;
     if (save(points.filter((_, i) => i !== index))) dialog.close();
     else selected = index;
   };
   edit.onclick = () => {
-    touring = false; controls.enabled = true; editing = !editing; selected = -1; refresh();
+    if (!ready) return;
+    if (editing) {
+      generation++; editing = false; selected = -1; dialog.close(); refresh();
+      return;
+    }
+    accessCode.value = '';
+    $('access-error').textContent = '';
+    accessDialog.showModal();
+    accessCode.focus();
   };
+  accessForm.addEventListener('submit', event => {
+    event.preventDefault();
+    if (!ready || !accessDialog.open) return;
+    if (accessCode.value !== EDITOR_ACCESS_CODE) {
+      $('access-error').textContent = 'Неверный код доступа.';
+      accessCode.select();
+      return;
+    }
+    touring = false; editing = true; selected = -1;
+    accessDialog.close(); refresh();
+  });
+  $('access-cancel').onclick = () => accessDialog.close();
+  accessDialog.addEventListener('close', () => { accessCode.value = ''; $('access-error').textContent = ''; });
   start.onclick = () => {
-    editing = false; touring = true; controls.enabled = false; refresh(); visit(0); $('tour-next').focus();
+    if (!ready || !points.length) return;
+    generation++; editing = false; touring = true; dialog.close(); refresh(); visit(0); $('tour-next').focus();
   };
   function exitTour() {
-    touring = false; selected = -1; controls.enabled = true; refresh();
+    touring = false; selected = -1; refresh();
     if (ready) fit(getRoot(), true);
   }
   $('tour-prev').onclick = () => visit(selected - 1);
@@ -246,7 +278,7 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
   return {
     select(index) { if (touring) return; editing ? openEditor(index) : visit(index); },
     reset: exitTour,
-    unload() { generation++; dragged = null; ready = false; touring = false; editing = false; selected = -1; points = []; controls.enabled = true; dialog.close(); refresh(); },
+    unload() { generation++; dragged = null; ready = false; touring = false; editing = false; selected = -1; points = []; controls.enabled = true; dialog.close(); accessDialog.close(); refresh(); },
     load(config) {
       generation++; model = config; ready = true;
       points = config.points.map(([position, title]) => ({position, title, description: ''}));

@@ -12,7 +12,8 @@
 <body>
 <main id="viewer" aria-label="Интерактивная 3D-сцена"></main>
 <header class="topbar"><div class="brand"><span class="mark"></span><span class="brand-copy"><span class="brand-title">Object Notes</span><span class="brand-subtitle">Интерактивная коллекция</span></span></div><div class="toolbar"><div class="field"><label for="model-select">Модель</label><select id="model-select" aria-label="Выберите 3D-модель"></select></div><button class="icon-button" id="reset" type="button" aria-label="Показать модель целиком" title="Показать целиком">↗</button></div></header>
-<div class="annotation-toolbar"><button id="edit-mode" type="button" disabled aria-pressed="false">Редактор точек</button><button id="tour-start" type="button" disabled>Начать экскурсию</button><button id="points-download" type="button" disabled>Скачать точки</button><button id="points-upload" type="button" disabled>Загрузить точки</button></div>
+<div class="annotation-toolbar"><button id="tour-start" type="button" disabled>Начать экскурсию</button><button id="points-download" type="button" disabled hidden>Скачать точки</button><button id="points-upload" type="button" disabled hidden>Загрузить точки</button></div>
+<button id="edit-mode" class="editor-access-button" type="button" disabled aria-pressed="false">Редактор точек</button>
 <input id="points-file" type="file" accept=".json,application/json" hidden>
 <section id="order-panel" class="point-panel order-panel" hidden aria-labelledby="order-title">
   <h2 id="order-title">Порядок экскурсии</h2>
@@ -24,9 +25,15 @@
 <div class="hint" id="viewer-hint">Выберите точку, чтобы приблизиться. Мышь — вращение, колесо — масштаб.</div><button class="credits-button" id="credits-open" type="button" aria-label="Авторы и лицензии">i</button>
 <section id="point-panel" class="point-panel" hidden aria-label="Аннотация">
   <div aria-live="polite" aria-atomic="true"><p id="point-count" class="point-count"></p><h2 id="point-title"></h2><p id="point-description"></p></div>
-  <div id="point-actions" class="actions"><button id="point-edit" type="button">Редактировать</button><button id="point-close" type="button">Закрыть</button></div>
+  <div id="point-actions" class="actions"><button id="point-edit" type="button" hidden>Редактировать</button><button id="point-close" type="button">Закрыть</button></div>
   <div id="tour-actions" class="actions" hidden><button id="tour-prev" type="button">← Назад</button><button id="tour-next" type="button">Дальше →</button><button id="tour-exit" type="button">Выйти</button></div>
 </section>
+<dialog id="editor-access" aria-labelledby="access-title"><form id="access-form" class="dialog-inner">
+  <h2 id="access-title">Вход в редактор</h2>
+  <label for="access-code">Код доступа команды</label><input id="access-code" type="password" required autocomplete="off" aria-describedby="access-error">
+  <p id="access-error" role="alert"></p>
+  <div class="actions"><button type="submit" class="primary">Войти</button><button id="access-cancel" type="button">Отмена</button></div>
+</form></dialog>
 <dialog id="point-editor" aria-labelledby="editor-title"><form id="point-form" class="dialog-inner">
   <h2 id="editor-title">Новая точка</h2>
   <label for="annotation-title">Название</label><input id="annotation-title" maxlength="120" required autocomplete="off">
@@ -63,10 +70,18 @@ function load(config,animate=true){const id=++token;tween=null;editor.unload();s
 function normalize(model){model.updateMatrixWorld(true);const box=new THREE.Box3().setFromObject(model),center=box.getCenter(new THREE.Vector3()),size=box.getSize(new THREE.Vector3()),scale=2.45/Math.max(size.x,size.y,size.z);model.scale.multiplyScalar(scale);model.position.copy(center).multiplyScalar(-scale);const group=new THREE.Group();group.add(model);group.updateMatrixWorld(true);return group}
 function createPoints(points){clearPoints();points.forEach((p,i)=>{const el=document.createElement('button');el.type='button';el.className='annotation';el.setAttribute('aria-label',p[1]);el.title=p[1];el.onclick=e=>{e.stopPropagation();editor.select(i)};document.body.appendChild(el);annotations.push({element:el,position:new THREE.Vector3(...p[0])})})}function clearPoints(){annotations.forEach(a=>a.element.remove());annotations.length=0}
 function fit(object,animate=true){const box=new THREE.Box3().setFromObject(object),size=box.getSize(new THREE.Vector3()),center=box.getCenter(new THREE.Vector3()),h=size.y/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))),w=size.x/(2*Math.tan(THREE.MathUtils.degToRad(camera.fov*.5))*camera.aspect),distance=Math.max(h,w,size.z*.72)*1.32,direction=new THREE.Vector3(.72,.34,1).normalize(),position=center.clone().addScaledVector(direction,distance);controls.minDistance=Math.max(.35,distance*.18);controls.maxDistance=distance*5;camera.near=Math.max(.01,distance/100);camera.far=Math.max(40,distance*50);camera.updateProjectionMatrix();annotations.forEach(a=>a.element.classList.remove('active'));animate?fly(position,center,1050):(camera.position.copy(position),controls.target.copy(center),controls.update())}
-function fly(position,target,duration){tween=null;if(reduced){camera.position.copy(position);controls.target.copy(target);controls.update();return}tween={start:performance.now(),duration,fromP:camera.position.clone(),toP:position.clone(),fromT:controls.target.clone(),toT:target.clone()}}
-function updateTween(time){if(!tween)return;const p=Math.min(1,(time-tween.start)/tween.duration),e=1-Math.pow(1-p,4);camera.position.lerpVectors(tween.fromP,tween.toP,e);controls.target.lerpVectors(tween.fromT,tween.toT,e);if(p===1)tween=null}
+function fly(position,target,duration){
+  tween=null;
+  // Clear orbit inertia before capturing the start of a new flight.
+  const damping=controls.enableDamping;
+  controls.enableDamping=false;controls.update();controls.enableDamping=damping;
+  if(reduced){camera.position.copy(position);controls.target.copy(target);controls.update();controls.enabled=true;return}
+  controls.enabled=false;
+  tween={start:performance.now(),duration,fromP:camera.position.clone(),toP:position.clone(),fromT:controls.target.clone(),toT:target.clone()};
+}
+function updateTween(time){if(!tween)return;const p=Math.min(1,(time-tween.start)/tween.duration),e=1-Math.pow(1-p,4);camera.position.lerpVectors(tween.fromP,tween.toP,e);controls.target.lerpVectors(tween.fromT,tween.toT,e);camera.lookAt(controls.target);if(p===1){tween=null;controls.enabled=true}}
 function updatePoints(){if(!root)return;const rect=renderer.domElement.getBoundingClientRect();annotations.forEach(a=>{const p=a.position.clone();root.localToWorld(p);p.project(camera);const visible=p.z>-1&&p.z<1&&Math.abs(p.x)<1.05&&Math.abs(p.y)<1.05;a.element.hidden=!visible;if(visible){a.element.style.left=`${rect.left+(p.x*.5+.5)*rect.width}px`;a.element.style.top=`${rect.top+(-p.y*.5+.5)*rect.height}px`}})}
-function render(time){updateTween(time);controls.update();if(mixer)mixer.update(Math.min(clock.getDelta(),.05));renderer.render(scene,camera);updatePoints()}function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight)}function loading(on,text='Загрузка модели…'){loaderText.textContent=text;loaderEl.classList.toggle('visible',on);select.disabled=on}function error(text){toast.textContent=text;toast.classList.add('visible');setTimeout(()=>toast.classList.remove('visible'),4500)}function dispose(object){object.traverse(c=>{if(!c.isMesh)return;c.geometry?.dispose();(Array.isArray(c.material)?c.material:[c.material]).forEach(m=>{if(!m)return;Object.values(m).forEach(v=>v?.isTexture&&v.dispose());m.dispose()})})}
+function render(time){updateTween(time);if(!tween)controls.update();if(mixer)mixer.update(Math.min(clock.getDelta(),.05));renderer.render(scene,camera);updatePoints()}function resize(){camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight)}function loading(on,text='Загрузка модели…'){loaderText.textContent=text;loaderEl.classList.toggle('visible',on);select.disabled=on}function error(text){toast.textContent=text;toast.classList.add('visible');setTimeout(()=>toast.classList.remove('visible'),4500)}function dispose(object){object.traverse(c=>{if(!c.isMesh)return;c.geometry?.dispose();(Array.isArray(c.material)?c.material:[c.material]).forEach(m=>{if(!m)return;Object.values(m).forEach(v=>v?.isTexture&&v.dispose());m.dispose()})})}
 }
 </script>
 </body></html>

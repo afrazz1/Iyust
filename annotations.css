@@ -1,4 +1,12 @@
 [hidden]{display:none!important}
+.editor-access-button{position:fixed;z-index:10;right:76px;bottom:26px;max-width:155px;padding:6px 9px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--muted);font:inherit;font-size:11px;cursor:pointer}
+.editor-access-button[aria-pressed=true]{color:var(--accent)}
+#access-form label{display:block;margin:16px 0 6px;font-size:13px}
+#access-code{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#111311;color:var(--ink);font:inherit}
+#access-code:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+#access-error{color:#ffb6a8;font-size:13px}
+.hint{max-width:min(390px,calc(100vw - 245px))}
+@media(max-width:640px){.editor-access-button{right:66px;bottom:19px;max-width:125px}.hint{max-width:calc(100vw - 210px)}}
 .annotation-toolbar{position:fixed;top:110px;right:20px;z-index:10;display:flex;gap:8px;flex-wrap:wrap}
 .annotation-toolbar button,.actions button{min-height:42px;padding:10px 14px;border:1px solid var(--line);border-radius:10px;background:#242821;color:var(--ink);font:inherit;font-size:13px;cursor:pointer}
 button:disabled{opacity:.45;cursor:default}
