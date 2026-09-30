@@ -271,7 +271,13 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
     if (!click || !editing || !ready || dialog.open) return;
     const rect = canvas.getBoundingClientRect();
     raycaster.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1, -(event.clientY-rect.top)/rect.height*2+1), camera);
-    const hit = raycaster.intersectObject(getRoot(), true).find(hit => hit.object.isMesh);
+    const hit = raycaster.intersectObject(getRoot(), true).find(hit => {
+      if (!hit.object.isMesh) return false;
+      for (let object = hit.object; object; object = object.parent) {
+        if (!object.visible) return false;
+      }
+      return true;
+    });
     if (hit) openEditor(-1, getRoot().worldToLocal(hit.point.clone()).toArray());
   });
 

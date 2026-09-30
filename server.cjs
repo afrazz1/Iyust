@@ -18,7 +18,7 @@ const server = http.createServer((request, response) => {
     const pathname = decodeURIComponent(new URL(request.url, url).pathname);
     const relative = pathname === '/' ? 'index.html' : pathname.slice(1);
     // Only serve the viewer and its model assets, never repository metadata.
-    if (!['index.html', 'annotations.js', 'annotations.css'].includes(relative) &&
+    if (!['index.html', 'annotations.js', 'annotations.css', 'exhibits.js'].includes(relative) &&
         !/^models\/[a-zA-Z0-9_./-]+$/.test(relative)) throw Error('Not public');
     filename = fs.realpathSync(path.resolve(root, relative));
     const resolved = path.relative(root, filename);
