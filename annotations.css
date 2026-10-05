@@ -53,7 +53,7 @@ h1,h2,h3,.brand-title,.credit-list strong,.annotation:after{font-family:"Source 
 .mark{width:8px;height:8px}
 .brand,.toolbar,.hint,.point-panel,#exhibits-panel,dialog,.toast,.order-row{background:var(--panel);border:1px solid var(--line);border-radius:8px}
 button,select,input,textarea,.icon-button,.credits-button,.editor-access-button,.dialog-close,.order-row button,#point-form input,#point-form textarea,#access-code{border-radius:4px}
-.icon-button,.credits-button,.editor-access-button,.dialog-close,.annotation-toolbar button,.actions button,.order-row button{border:2px solid var(--line);background:none;color:var(--ink)}
+.icon-button,.credits-button,.editor-access-button,.dialog-close,.annotation-toolbar button,.actions button,.order-row button{border:2px solid var(--line);border-radius:4px;background:none;color:var(--ink)}
 .icon-button:hover,.credits-button:hover,.editor-access-button:hover,.dialog-close:hover,.annotation-toolbar button:hover,.actions button:hover,.order-row button:hover{border-color:var(--accent);background:none;transform:none}
 #tour-start,.actions .primary,.annotation-toolbar button[aria-pressed=true],.editor-access-button[aria-pressed=true]{background:var(--accent);border:2px solid var(--accent);color:#fff}
 #tour-start:hover:not(:disabled),.actions .primary:hover,.annotation-toolbar button[aria-pressed=true]:hover,.editor-access-button[aria-pressed=true]:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
