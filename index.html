@@ -60,7 +60,7 @@ const [THREE, {OrbitControls}, {GLTFLoader}, {DRACOLoader}, {KTX2Loader}, {annot
   import('three/addons/loaders/GLTFLoader.js'), import('three/addons/loaders/DRACOLoader.js'), import('three/addons/loaders/KTX2Loader.js'), import('./annotations.js'), import('./exhibits.js')
 ]);
 const configs=[
-{id:'vitrina-1',name:'Витрина 1',url:'./models/vitrina-1/vitrina-compressed.glb',points:[]}
+{id:'vitrina-1',name:'Витрина 1',url:'./models/vitrina-1/vitrina-compressed.glb?v=2048',points:[]}
 ];
 const viewer=document.querySelector('#viewer'),select=document.querySelector('#model-select'),loaderEl=document.querySelector('#loader'),loaderText=document.querySelector('#loader-text'),toast=document.querySelector('#toast'),reduced=matchMedia('(prefers-reduced-motion:reduce)').matches;
 const scene=new THREE.Scene();scene.background=new THREE.Color(0x16181A);scene.fog=new THREE.Fog(0x16181A,7,13);const camera=new THREE.PerspectiveCamera(42,innerWidth/innerHeight,.01,100);camera.position.set(3.2,1.8,4.3);const renderer=new THREE.WebGLRenderer({antialias:true,powerPreference:'high-performance'});renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(innerWidth,innerHeight);renderer.outputColorSpace=THREE.SRGBColorSpace;renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.08;viewer.appendChild(renderer.domElement);
