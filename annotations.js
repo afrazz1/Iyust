@@ -147,6 +147,11 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
 
   function showPanel() {
     const p = points[selected];
+    document.querySelectorAll('.annotation').forEach((el, i) => {
+      const active = !!p && i === selected;
+      el.classList.toggle('active', active);
+      el.setAttribute('aria-pressed', String(active));
+    });
     panel.hidden = !p || editing;
     if (!p) return;
     $('point-count').textContent = touring ? `Экскурсия · ${selected + 1} из ${points.length}` : `Точка ${selected + 1} из ${points.length}`;
@@ -176,7 +181,6 @@ export function annotationEditor({THREE, canvas, camera, controls, getRoot, fly,
       ? root.localToWorld(new THREE.Vector3(...p.view.position))
       : target.clone().addScaledVector(new THREE.Vector3(.72,.34,1).normalize(), 1.8);
     fly(position, target, 850);
-    document.querySelectorAll('.annotation').forEach((el, i) => el.classList.toggle('active', i === index));
     showPanel();
   }
 

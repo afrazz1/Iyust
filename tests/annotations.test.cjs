@@ -27,7 +27,7 @@ function setup(unlocked = true) {
   const elements = new Map();
   const $ = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
   const storage = new Map(), messages = [], visits = [];
-  let rendered, blob, failSave = false, confirmed = true;
+  let rendered, blob, failSave = false, confirmed = true, markers = [];
   class Vector3 {
     constructor(...values) { this.values = values; }
     clone() { return new Vector3(...this.values); }
@@ -35,7 +35,7 @@ function setup(unlocked = true) {
     addScaledVector(v, n) { this.values = this.values.map((x, i) => x + v.values[i] * n); return this; }
   }
   const context = vm.createContext({
-    document: {getElementById: $, createElement: () => new Element(), body: new Element(), querySelectorAll: () => [], addEventListener() {}},
+    document: {getElementById: $, createElement: () => new Element(), body: new Element(), querySelectorAll: () => markers, addEventListener() {}},
     localStorage: {getItem: key => storage.get(key) ?? null, setItem: (key, value) => { if (failSave) throw Error('full'); storage.set(key, value); }},
     window: {confirm: () => confirmed}, Blob, URL: {createObjectURL: value => { blob = value; return 'blob:test'; }, revokeObjectURL() {}}, setTimeout() {}
   });
@@ -43,7 +43,13 @@ function setup(unlocked = true) {
   const controls = {enabled: true};
   const editor = context.annotationEditor({THREE: {Raycaster: class {}, Vector3}, canvas: new Element(), camera: {}, controls,
     getRoot: () => ({localToWorld: v => v}), fly: (p, t) => visits.push([p.values, t.values]), fit() {},
-    createPoints: p => { rendered = JSON.parse(JSON.stringify(p)); }, notify: m => messages.push(m)});
+    createPoints: p => {
+      rendered = JSON.parse(JSON.stringify(p));
+      markers = p.map(() => ({active: false, attributes: {},
+        classList: {toggle(name, value) { this.owner.active = value; }},
+        setAttribute(name, value) { this.attributes[name] = value; }}));
+      markers.forEach(marker => { marker.classList.owner = marker; });
+    }, notify: m => messages.push(m)});
   const points = ['A', 'B', 'C'].map((title, i) => ({title, description: `Text ${title}`, position: [i, 0, 0], view: {position: [i, 1, 2], target: [i, 0, 0]}}));
   const file = {format: 'object-notes', version: 1, modelId: 'lamp', points};
   editor.load({id: 'lamp', points: [[[0, 0, 0], 'Default']]});
@@ -55,8 +61,21 @@ function setup(unlocked = true) {
   const upload = async data => { $('points-file').files = [{text: async () => typeof data === 'string' ? data : JSON.stringify(data)}]; await $('points-file').onchange(); };
   const download = async () => { $('points-download').onclick(); return JSON.parse(await blob.text()); };
   return {$, editor, controls, file, upload, download, storage, messages, visits, login,
-    rendered: () => rendered, fail: () => { failSave = true; }, cancel: () => { confirmed = false; }};
+    rendered: () => rendered, markers: () => markers, fail: () => { failSave = true; }, cancel: () => { confirmed = false; }};
 }
+
+test('selected marker stays active until its card closes and unload clears markers', async () => {
+  const s = setup(); await s.upload(s.file);
+  s.$('edit-mode').onclick();
+  s.editor.select(1);
+  assert.deepEqual(Array.from(s.markers(), m => m.active), [false, true, false]);
+  assert.equal(s.markers()[1].attributes['aria-pressed'], 'true');
+  s.$('point-close').onclick();
+  assert.ok(s.markers().every(m => !m.active && m.attributes['aria-pressed'] === 'false'));
+  s.editor.select(0);
+  s.editor.unload();
+  assert.equal(s.markers().length, 0);
+});
 
 test('JSON round trip preserves descriptions, coordinates, camera views and order', async () => {
   const s = setup(); await s.upload(s.file);

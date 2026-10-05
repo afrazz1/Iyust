@@ -1,4 +1,4 @@
-# Object Notes
+# Heritage Lite
 
 Интерактивная витрина на Three.js. При открытии показан фасад витрины; кнопка «Показать модель целиком» возвращает тот же ракурс. Модель можно вращать, масштабировать и приближать к отмеченным деталям кликом по аннотации. Тестовые модели исключены из интерфейса.
 
@@ -36,3 +36,7 @@
 - **Lamp** — Aaron_Beller, [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), [оригинал](https://sketchfab.com/3d-models/lamp-c85c7a1dbb724e9ea1d90abd6445fad4).
 - **Avocado** — Microsoft, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [Khronos](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Avocado).
 - **Boom Box** — Microsoft, [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/), [Khronos](https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BoomBox).
+
+## Оформление
+
+Палитра Heritage Lite: сцена #16181A, непрозрачные панели #1F2224, линии #2F3336, текст #EFEBE3 / #A39E92, акцент #C4552D (наведение #A8431F). Заголовки — Source Serif 4, интерфейс — Inter Tight; шрифты загружаются через Google Fonts. Панели без теней и размытия. Контурные точки заполняются при выборе; подписи видны при наведении, фокусе и после нажатия до закрытия карточки.
